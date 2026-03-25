@@ -1,106 +1,104 @@
 import java.util.Random;
-class Number
-{
-	int num;
+
+class Number {
+    int num;
+    boolean available = false;
+    boolean finished = false;
 }
 
-class Generator extends Thread
-{
-	Number n;
-	Random r = new Random();
+class Generator extends Thread {
+    Number n;
+    Random r = new Random();
 
-	Generator(Number n)
-	{
-		this.n=n;
-	}
-	
-	public void run()
-	{
-		for(int i=1; i<=6; i++)
-		{
-			n.num = r.nextInt(10);
-		}
+    Generator(Number n) {
+        this.n = n;
+    }
 
-			System.out.println("\n Generator Number: " + n.num);
-				try
-				{
-					Thread.sleep(1000);
-				}
-				catch(InterruptedException e)
-				{
-					System.out.println(e);			
-				}
-	}
+    public void run() {
+        for (int i = 1; i <= 10; i++) {
+            synchronized (n) {
+                while (n.available) {
+                    try { n.wait(); } catch (Exception e) {}
+                }
+
+                n.num = r.nextInt(100);
+                System.out.println("Generated: " + n.num);
+
+                n.available = true;
+                n.notifyAll();
+            }
+        }
+
+        // Signal completion
+        synchronized (n) {
+            n.finished = true;
+            n.notifyAll();
+        }
+    }
 }
 
-class Square extends Thread
-{
-	Number n;
-	Square(Number n)
-	{
-		this.n = n;
-	}
-	public void run()
-	{
-		for(int i = 1;i <= 6; i++)
-		{
-			if(n.num % 2 == 0)
-			{
-				System.out.println("Square of " + n.num + " = " + (n.num * n.num));
-			}
-		}
-			
-		try
-		{
-			Thread.sleep(1000);
-		}
-		catch(InterruptedException e)
-		{
-			System.out.println(e);
-		}
-		
-	}
-}
-class Cube extends Thread
-{
-	Number n;
-	Cube(Number n)
-	{
-		this.n = n;
-	}
-	public void run()
-	{
-		for(int i = 1;i <= 6; i++)
-		{
-			if(n.num % 2 != 0)
-			{
-				System.out.println("Cube of " + n.num + " = " + (n.num * n.num* n.num));
-			}
-		}
-			
-			try
-			{
-				Thread.sleep(1000);
-			}
-			catch(InterruptedException e)
-			{
-				System.out.println(e);
-			}
-		
-	}
+class Square extends Thread {
+    Number n;
+
+    Square(Number n) {
+        this.n = n;
+    }
+
+    public void run() {
+        while (true) {
+            synchronized (n) {
+                while (!n.available && !n.finished) {
+                    try { n.wait(); } catch (Exception e) {}
+                }
+
+                if (n.finished && !n.available) break;
+
+                if (n.num % 2 == 0) {
+                    System.out.println("Square: " + (n.num * n.num));
+                    n.available = false;
+                    n.notifyAll();
+                } else {
+                    n.notifyAll(); // let cube handle it
+                }
+            }
+        }
+    }
 }
 
-public class MultiThreadSyn							
-{
-	public static void main(String[] args)
-	{
-		Number n = new Number();
-		Generator t1 = new Generator(n);
-		Square t2 = new Square(n);
-		Cube t3 = new Cube(n);
+class Cube extends Thread {
+    Number n;
 
-		t1.start();
-		t2.start();
-		t3.start();
-	}
+    Cube(Number n) {
+        this.n = n;
+    }
+
+    public void run() {
+        while (true) {
+            synchronized (n) {
+                while (!n.available && !n.finished) {
+                    try { n.wait(); } catch (Exception e) {}
+                }
+
+                if (n.finished && !n.available) break;
+
+                if (n.num % 2 != 0) {
+                    System.out.println("Cube: " + (n.num * n.num * n.num));
+                    n.available = false;
+                    n.notifyAll();
+                } else {
+                    n.notifyAll(); // let square handle it
+                }
+            }
+        }
+    }
+}
+
+public class MultiThreadSyn {
+    public static void main(String[] args) {
+        Number n = new Number();
+
+        new Generator(n).start();
+        new Square(n).start();
+        new Cube(n).start();
+    }
 }
